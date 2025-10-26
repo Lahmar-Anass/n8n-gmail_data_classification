@@ -1,0 +1,1750 @@
+{
+  "name": "gmail data",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -416,
+        -16
+      ],
+      "id": "id",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const files = [];\nconst images = [];\nconst videos = [];\n\n// Loop through all emails from \"Get Many\"\nfor (const item of $input.all()) {\n  // Handle different email formats\n  let sender;\n  if (item.json.from?.value && Array.isArray(item.json.from.value)) {\n    sender = item.json.from.value[0].address;\n  } else if (item.json.from?.address) {\n    sender = item.json.from.address;\n  } else if (typeof item.json.from === 'string') {\n    sender = item.json.from;\n  } else {\n    sender = 'unknown@email.com';\n  }\n  \n  // Extract Gmail message ID (try different possible field names)\n  const gmailMessageId = item.json.id || item.json.messageId || item.json.threadId;\n  \n  // Process attachments for this email\n  if (item.binary) {\n    for (const key of Object.keys(item.binary)) {\n      if (key.startsWith('attachment_')) {\n        const file = item.binary[key];\n        \n        // Determine file type based on MIME type\n        let fileType = 'file';\n        if (file.mimeType && file.mimeType.startsWith('image/')) {\n          fileType = 'image';\n        } else if (file.mimeType && file.mimeType.startsWith('video/')) {\n          fileType = 'video';\n        }\n        \n        const output = {\n          json: {\n            fileName: file.fileName || 'unnamed_file',\n            type: fileType,  // Changed from mimeType to type\n            fileSize: file.fileSize || 0,\n            from: sender,\n            gmailMessageId: gmailMessageId,  // Preserve the Gmail message ID\n            emailId: item.json.id,  // Keep this for backwards compatibility\n            emailSubject: item.json.subject || 'No Subject',\n            emailDate: item.json.date || new Date().toISOString(),\n          },\n          binary: {\n            data: file,\n          },\n        };\n        \n        // Categorize by type\n        if (fileType === 'image') {\n          images.push(output);\n        } else if (fileType === 'video') {\n          videos.push(output);\n        } else {\n          files.push(output);\n        }\n      }\n    }\n  }\n}\n\n// Return all items (type is already set)\nreturn [...files, ...images, ...videos];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        -16
+      ],
+      "id": "id",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "={{ $json.from }}",
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "PARENT_FOLDER_ID",
+            "mode": "list",
+            "cachedResultName": "n8n",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/PARENT_FOLDER_ID"
+          }
+        },
+        "options": {
+          "fields": [
+            "mimeType",
+            "name",
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        224,
+        80
+      ],
+      "id": "is",
+      "name": "Search files and folders",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "id",
+              "leftValue": "={{ $json.folderExists }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "NODE_ID",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "={{ $json.from }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "PARENT_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "n8n",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/PARENT_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1376,
+        -288
+      ],
+      "id": "NODE_ID",
+      "name": "Create folder",
+      "executeOnce": false,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "file",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "7928f2b0-1818-4248-9c7f-64ee0edbaac5"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "id",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "id",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "={{ $json.type }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1936,
+        -256
+      ],
+      "id": "NODE_ID",
+      "name": "Switch1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "=files",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1904,
+        -368
+      ],
+      "id": "ID",
+      "name": "Create folder2",
+      "retryOnFail": false,
+      "waitBetweenTries": 1000,
+      "maxTries": 5,
+      "executeOnce": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "=images",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2176,
+        -112
+      ],
+      "id": "id",
+      "name": "Create folder3",
+      "retryOnFail": false,
+      "executeOnce": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "name": "videos",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2176,
+        160
+      ],
+      "id": "id",
+      "name": "Create folder4",
+      "retryOnFail": false,
+      "executeOnce": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "name",
+              "field2": "from"
+            }
+          ]
+        },
+        "joinMode": "keepEverything",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1632,
+        -224
+      ],
+      "id": "id",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "={{ $('Code in JavaScript2').item.binary.data }}",
+        "name": "=",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "propertiesUi": {
+            "propertyValues": [
+              {
+                "key": "=emailId",
+                "value": "={{ $json.gmailMessageId }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2608,
+        -480
+      ],
+      "id": "id",
+      "name": "Upload file1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "={{ $('Code in JavaScript3').item.binary.data }}",
+        "name": "=",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "propertiesUi": {
+            "propertyValues": [
+              {
+                "key": "emailId",
+                "value": "{{ $json.gmailMessageId }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2576,
+        -176
+      ],
+      "id": "id",
+      "name": "Upload file2",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "={{ $('Code in JavaScript4').item.binary.data }}",
+        "name": "=",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "propertiesUi": {
+            "propertyValues": [
+              {
+                "key": "emailId",
+                "value": "={{ $json.gmailMessageId }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2592,
+        80
+      ],
+      "id": "3e1d6fc9-2cfa-4bd1-8f64-dec375ac46e1",
+      "name": "Upload file3",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const outputItems = [];\n\nfor (const item of $input.all()) {\n  const binaryData = item.binary || {};\n  \n  if (Object.keys(binaryData).length > 0) {\n    for (const [key, value] of Object.entries(binaryData)) {\n      outputItems.push({\n        json: {\n          ...item.json,  // Preserves ALL fields including gmailMessageId, folderExists, senderEmail, etc.\n          currentAttachment: key,\n          fileName: value.fileName || value.filename || item.json.fileName || 'file',\n          mimeType: value.mimeType || item.json.mimeType || 'application/octet-stream',\n          from: item.json.from || item.json.senderEmail || 'unknown',\n          type: item.json.type || 'file'\n        },\n        binary: {\n          data: value\n        }\n      });\n    }\n  } else {\n    // If no binary data, still pass through the item to preserve the flow\n    outputItems.push({\n      json: {\n        ...item.json\n      }\n    });\n  }\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        -544
+      ],
+      "id": "id",
+      "name": "Code in JavaScript2",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const outputItems = [];\n\nfor (const item of $input.all()) {\n  const binaryData = item.binary || {};\n  \n  if (Object.keys(binaryData).length > 0) {\n    for (const [key, value] of Object.entries(binaryData)) {\n      outputItems.push({\n        json: {\n          ...item.json,  // Preserves ALL fields including gmailMessageId, folderExists, senderEmail, etc.\n          currentAttachment: key,\n          fileName: value.fileName || value.filename || item.json.fileName || 'file',\n          mimeType: value.mimeType || item.json.mimeType || 'application/octet-stream',\n          from: item.json.from || item.json.senderEmail || 'unknown',\n          type: item.json.type || 'file'\n        },\n        binary: {\n          data: value\n        }\n      });\n    }\n  } else {\n    // If no binary data, still pass through the item to preserve the flow\n    outputItems.push({\n      json: {\n        ...item.json\n      }\n    });\n  }\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        -240
+      ],
+      "id": "id",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const outputItems = [];\n\nfor (const item of $input.all()) {\n  const binaryData = item.binary || {};\n  \n  if (Object.keys(binaryData).length > 0) {\n    for (const [key, value] of Object.entries(binaryData)) {\n      outputItems.push({\n        json: {\n          ...item.json,  // Preserves ALL fields including gmailMessageId, folderExists, senderEmail, etc.\n          currentAttachment: key,\n          fileName: value.fileName || value.filename || item.json.fileName || 'file',\n          mimeType: value.mimeType || item.json.mimeType || 'application/octet-stream',\n          from: item.json.from || item.json.senderEmail || 'unknown',\n          type: item.json.type || 'file'\n        },\n        binary: {\n          data: value\n        }\n      });\n    }\n  } else {\n    // If no binary data, still pass through the item to preserve the flow\n    outputItems.push({\n      json: {\n        ...item.json\n      }\n    });\n  }\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2176,
+        32
+      ],
+      "id": "id",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "kind",
+              "field2": "kind"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2416,
+        -480
+      ],
+      "id": "id",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "kind",
+              "field2": "kind"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2384,
+        -176
+      ],
+      "id": "id",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "kind",
+              "field2": "kind"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2400,
+        80
+      ],
+      "id": "id",
+      "name": "Merge4"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "limit": 10,
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -176,
+        -16
+      ],
+      "id": "id",
+      "name": "Get many messages",
+      "webhookId": "webhookId",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const outputItems = [];\nconst searchResults = $('Search files and folders').all();\n\n// Create a Set of existing folder names for faster lookup\nconst existingFolders = new Set();\nsearchResults.forEach(result => {\n  if (result.json.mimeType === 'application/vnd.google-apps.folder') {\n    existingFolders.add(result.json.name);\n  }\n});\n\n// Process each item from the input (attachments)\nfor (const item of $input.all()) {\n  // Extract sender email - try multiple possible field names\n  let senderEmail;\n  if (item.json.from) {\n    senderEmail = item.json.from;\n  } else if (item.json.name) {\n    // In case the email is in the 'name' field\n    senderEmail = item.json.name;\n  } else {\n    senderEmail = 'unknown@email.com';\n  }\n  \n  // Check if a folder exists for this sender email\n  const folderExists = existingFolders.has(senderEmail);\n  \n  // Preserve all data and add folder existence flag\n  outputItems.push({\n    json: {\n      ...item.json,  // This preserves ALL fields\n      folderExists: folderExists,\n      senderEmail: senderEmail\n    },\n    binary: item.binary  // This preserves attachments\n  });\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "id",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "mode": "chooseBranch"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        432,
+        0
+      ],
+      "id": "id",
+      "name": "Merge5"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "file",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "id"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "id",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "image",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "id",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "=video",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        1104,
+        96
+      ],
+      "id": "id",
+      "name": "Switch2"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "={{ $('Code in JavaScript7').item.binary.data }}",
+        "name": "=",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2080,
+        560
+      ],
+      "id": "id",
+      "name": "Upload file5",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "={{ $('Code in JavaScript8').item.binary.data }}",
+        "name": "=",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        2064,
+        768
+      ],
+      "id": "id",
+      "name": "Upload file6",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $('Switch2').item.json.emailId }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2496,
+        592
+      ],
+      "id": "id",
+      "name": "Mark a message as read1",
+      "webhookId": "webhookId_1",
+      "retryOnFail": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "markAsRead",
+        "messageId": "={{ $json.properties.emailId }}"
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3040,
+        -176
+      ],
+      "id": "id",
+      "name": "Mark a message as read",
+      "webhookId": "webhookId_2",
+      "retryOnFail": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2880,
+        -176
+      ],
+      "id": "id",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "const uniqueSenders = new Map();\n\nfor (const item of $input.all()) {\n  const sender = item.json.from || item.json.senderEmail;\n  \n  if (sender && !uniqueSenders.has(sender)) {\n    uniqueSenders.set(sender, {\n      json: {\n        from: sender,\n        senderEmail: sender,\n        folderExists: item.json.folderExists,\n        // Store the first item's data for this sender\n        gmailMessageId: item.json.gmailMessageId,\n        emailSubject: item.json.emailSubject,\n        type: item.json.type\n      },\n      binary: item.binary\n    });\n  }\n}\n\nreturn Array.from(uniqueSenders.values());"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1152,
+        -208
+      ],
+      "id": "id",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2304,
+        576
+      ],
+      "id": "id",
+      "name": "Merge6"
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "={{ $json.senderEmail }}",
+        "limit": 1,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "PARENT_FOLDER_ID",
+            "mode": "list",
+            "cachedResultName": "n8n",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/PARENT_FOLDER_ID"
+          }
+        },
+        "options": {
+          "fields": [
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        64
+      ],
+      "id": "id",
+      "name": "Search files and folders1",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "=files",
+        "limit": 1,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $json.id }}",
+            "mode": ""
+          }
+        },
+        "options": {
+          "fields": [
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1536,
+        48
+      ],
+      "id": "id",
+      "name": "Search files and folders2",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "={{ $json.senderEmail }}",
+        "limit": 1,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "PARENT_FOLDER_ID",
+            "mode": "list",
+            "cachedResultName": "n8n",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/PARENT_FOLDER_ID"
+          }
+        },
+        "options": {
+          "fields": [
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1312,
+        608
+      ],
+      "id": "id",
+      "name": "Search files and folders3",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "=videos",
+        "limit": 1,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $json.id }}",
+            "mode": ""
+          }
+        },
+        "options": {
+          "fields": [
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1568,
+        656
+      ],
+      "id": "id",
+      "name": "Search files and folders4",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "={{ $json.senderEmail }}",
+        "limit": 1,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "PARENT_FOLDER_ID",
+            "mode": "list",
+            "cachedResultName": "n8n",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/PARENT_FOLDER_ID"
+          }
+        },
+        "options": {
+          "fields": [
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1520,
+        304
+      ],
+      "id": "id",
+      "name": "Search files and folders5",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "queryString": "=images",
+        "limit": 1,
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "value": "={{ $json.id }}",
+            "mode": ""
+          }
+        },
+        "options": {
+          "fields": [
+            "id"
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1744,
+        320
+      ],
+      "id": "id",
+      "name": "Search files and folders6",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1744,
+        96
+      ],
+      "id": "eid",
+      "name": "Merge7"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1904,
+        464
+      ],
+      "id": "id",
+      "name": "Merge8"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {
+          "includeUnpaired": true
+        }
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1760,
+        672
+      ],
+      "id": "id",
+      "name": "Merge10"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "={{ $('Code in JavaScript6').item.binary.data }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1952,
+        208
+      ],
+      "id": "ID",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const outputItems = [];\n\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const binaryData = item.binary || {};\n  \n  if (Object.keys(binaryData).length > 0) {\n    for (const [key, value] of Object.entries(binaryData)) {\n      outputItems.push({\n        json: {\n          ...item.json,  // Preserves ALL fields including gmailMessageId, folderExists, senderEmail, etc.\n          currentAttachment: key,\n          fileName: value.fileName || value.filename || item.json.fileName || 'file',\n          mimeType: value.mimeType || item.json.mimeType || 'application/octet-stream',\n          from: item.json.from || item.json.senderEmail || 'unknown',\n          type: item.json.type || 'file'\n        },\n        binary: {\n          data: value\n        },\n        pairedItem: {\n          item: i\n        }\n      });\n    }\n  } else {\n    // If no binary data, still pass through the item to preserve the flow\n    outputItems.push({\n      json: {\n        ...item.json\n      },\n      pairedItem: {\n        item: i\n      }\n    });\n  }\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        192
+      ],
+      "id": "id",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const outputItems = [];\n\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const binaryData = item.binary || {};\n  \n  if (Object.keys(binaryData).length > 0) {\n    for (const [key, value] of Object.entries(binaryData)) {\n      outputItems.push({\n        json: {\n          ...item.json,  // Preserves ALL fields including gmailMessageId, folderExists, senderEmail, etc.\n          currentAttachment: key,\n          fileName: value.fileName || value.filename || item.json.fileName || 'file',\n          mimeType: value.mimeType || item.json.mimeType || 'application/octet-stream',\n          from: item.json.from || item.json.senderEmail || 'unknown',\n          type: item.json.type || 'file'\n        },\n        binary: {\n          data: value\n        },\n        pairedItem: {\n          item: i\n        }\n      });\n    }\n  } else {\n    // If no binary data, still pass through the item to preserve the flow\n    outputItems.push({\n      json: {\n        ...item.json\n      },\n      pairedItem: {\n        item: i\n      }\n    });\n  }\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1616,
+        464
+      ],
+      "id": "id",
+      "name": "Code in JavaScript7"
+    },
+    {
+      "parameters": {
+        "jsCode": "const outputItems = [];\n\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const binaryData = item.binary || {};\n  \n  if (Object.keys(binaryData).length > 0) {\n    for (const [key, value] of Object.entries(binaryData)) {\n      outputItems.push({\n        json: {\n          ...item.json,  // Preserves ALL fields including gmailMessageId, folderExists, senderEmail, etc.\n          currentAttachment: key,\n          fileName: value.fileName || value.filename || item.json.fileName || 'file',\n          mimeType: value.mimeType || item.json.mimeType || 'application/octet-stream',\n          from: item.json.from || item.json.senderEmail || 'unknown',\n          type: item.json.type || 'file'\n        },\n        binary: {\n          data: value\n        },\n        pairedItem: {\n          item: i\n        }\n      });\n    }\n  } else {\n    // If no binary data, still pass through the item to preserve the flow\n    outputItems.push({\n      json: {\n        ...item.json\n      },\n      pairedItem: {\n        item: i\n      }\n    });\n  }\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        464
+      ],
+      "id": "id",
+      "name": "Code in JavaScript8"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get many messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Switch2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create folder": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create folder2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create folder3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create folder4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create folder2": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create folder3": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Create folder4": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Merge4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Upload file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Upload file2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge4": {
+      "main": [
+        [
+          {
+            "node": "Upload file3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many messages": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge5": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Search files and folders1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript7",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Search files and folders5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript8",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Search files and folders3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file6": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Upload file5": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Upload file1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Upload file2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Mark a message as read",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Create folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge6": {
+      "main": [
+        [
+          {
+            "node": "Mark a message as read1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark a message as read": {
+      "main": [
+        []
+      ]
+    },
+    "Search files and folders1": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders3": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders5": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders2": {
+      "main": [
+        [
+          {
+            "node": "Merge7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge7": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders6": {
+      "main": [
+        [
+          {
+            "node": "Merge8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge8": {
+      "main": [
+        [
+          {
+            "node": "Upload file5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders4": {
+      "main": [
+        [
+          {
+            "node": "Merge10",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge10": {
+      "main": [
+        [
+          {
+            "node": "Upload file6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "Merge7",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript7": {
+      "main": [
+        [
+          {
+            "node": "Merge8",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript8": {
+      "main": [
+        [
+          {
+            "node": "Merge10",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "YOUR_VERSION_ID",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": []
+}
